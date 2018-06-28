@@ -53,6 +53,7 @@ class FileManager():
         log_file.close()
         return data;
 
+
     def log_update(self, file_name = 'files', curDir = os.getcwd()):
         file_path = os.path.join(curDir, file_name + '.log')
         log_file = open(file_path, 'w')
@@ -85,6 +86,14 @@ class FileManager():
 
         return newFile_list, delFile_list, modFile_list, rnmFile_list;
 
+    def file_delete(self, file_name, curDir = os.getcwd()):
+        path = os.path.join(curDir, file_name)
+        if os.path.isfile(path):
+            os.remove(path)
+            return True;
+        else:
+            return False;
+
 def hash(file_path):
     f = open(file_path, 'rb')
     readFile = f.read()
@@ -94,7 +103,6 @@ def hash(file_path):
 
 def printComparison(title, lst):
     print(title)
-
     if len(lst) == 0:
         print('\t No entries')
     for file in lst:
@@ -112,8 +120,32 @@ if __name__ == '__main__':
         if command[0] == 'quit' or command[0] == 'q': # Exit program
             print('Thanks for using File Manager.')
             sys.exit(0)
+
+        elif command[0] == 'help' or command[0] == 'h': # Exit program
+            print('Tracking extensions...' + str(fm.EXT))
+            print('Searching subdirs...' + str(fm.SEARCH_SUBDIRS))
+
+            print('List of commands...')
+
+            print('log:')
+            print('\tCommit the changes to the log file')
+
+            print('compare:')
+            print('\tRun a comparison against the log to find which files are new, updated, deleted or renamed')
+
+            print('opt <var_name> val1[,val2]*:')
+            print('\tUse opt to list and change file manager options')
+
+            print('del:')
+            print('\tDelete the existing log file')
+
+            print('quit:')
+            print('\tExit the program')
+
+
         elif command[0] == 'log': # Write file and hash list to log file
             fm.log_update()
+
         elif command[0] == 'compare': # Compare log file and actual files
             log_data = fm.log_load()
             file_list = fm.getFileList()
@@ -126,6 +158,25 @@ if __name__ == '__main__':
             printComparison('MODIFIED:', m)
             printComparison('RENAMED:', r)
 
+        elif command[0] == 'del':
+            if fm.file_delete('files.log'):
+                print('Log file deleted')
+            else:
+                print('Log file does not exist')
+
+        elif command[0] == 'opt':
+            if len(command) == 1:
+                print('EXT: ' + str(fm.EXT))
+                print('SEARCH_SUBDIRS: ' + str(fm.SEARCH_SUBDIRS))
+            elif len(command) == 3:
+                if command[1] == 'ext':
+                    fm.EXT = command[2].split(',')
+                    print('EXT: ' + str(fm.EXT))
+                elif command[1] == 'search_subdirs':
+                    fm.SEARCH_SUBDIRS = (command[2] == 'true')
+                    print('SEARCH_SUBDIRS: ' + str(fm.SEARCH_SUBDIRS))
+            else:
+                print('Invalid number of arguments')
 
         else:
             print('Invalid command')
