@@ -9,6 +9,14 @@ class FileManager():
         self.SEARCH_SUBDIRS = True
         self.HASHES = {}
 
+    def getDirList(self, curDir = os.getcwd()):
+        dir_list = ['< ~ >', '< .. >']
+        for node in os.scandir(curDir):
+            if node.is_dir():
+                dir_list.append(node.name)
+
+        return dir_list
+
     def getFileList(self, curDir = os.getcwd()):
         file_list = []
         dir_queue = [curDir]
@@ -33,6 +41,22 @@ class FileManager():
                 return True
         return False
 
+    def log_update(self, file_name = 'files'):
+        log_file = open(file_name + '.log', 'w')
+        file_list = self.getFileList()
+        for file in file_list:
+            log_file.write(file + '\t' + str(hash(file)) + '\n')
+        log_file.close()
+
+    def hash(file_path):
+        f = open(file_path, 'rb')
+        readFile = f.read()
+        hash_func = hashlib.md5(readFile)
+        return hash_func.hexdigest();
+
+
 if __name__ == '__main__':
     fm = FileManager([])
     print(fm.getFileList())
+    print(fm.getDirList())
+    fm.log_update()
