@@ -1,7 +1,8 @@
 # File Manager
 # Author : Shobhit Adlakha
 
-import hashlib, os, sys;
+import hashlib, os, sys, shutil;
+import pprint;
 
 class FileManager():
     def __init__(self, ext):
@@ -33,7 +34,7 @@ class FileManager():
         return file_list;
 
     def hasExtension(self, file):
-        if len(self.EXT) == 0:
+        if len(self.EXT) == 0 and not file.endswith('.log'):
             return True;
         for ext in self.EXT:
             if file.endswith('.' + ext.lower()):
@@ -57,14 +58,14 @@ class FileManager():
     def log_update(self, file_name = 'files', curDir = os.getcwd()):
         file_path = os.path.join(curDir, file_name + '.log')
         log_file = open(file_path, 'w')
-        file_list = self.getFileList()
+        file_list = self.getFileList(curDir)
         for file in file_list:
-            log_file.write(file + '\t' + hash(file) + '\n')
+            log_file.write(file + '\t' + hash(file, curDir) + '\n')
         log_file.close()
 
 
 
-    def log_compare(self, log_data, file_list):
+    def log_compare(self, log_data, file_list, curDir = os.getcwd()):
         newFile_list = []
         delFile_list = []
         modFile_list = []
@@ -72,10 +73,10 @@ class FileManager():
 
         for file in file_list:
             if file in log_data.keys():
-                if hash(file) != log_data[file]: # Modified file
+                if hash(file, curDir) != log_data[file]: # Modified file
                     modFile_list.append(file)
             else:
-                if hash(file) in log_data.values(): # Renamed file
+                if hash(file, curDir) in log_data.values(): # Renamed file
                     rnmFile_list.append(file)
                 else: # New file
                     newFile_list.append(file)
@@ -94,7 +95,40 @@ class FileManager():
         else:
             return False;
 
-def hash(file_path):
+    def syncDir(self, src_dir, dest_dir):
+
+        if not (os.path.isdir(src_dir) and os.path.isdir(dest_dir)):
+            return False
+
+        # Get file list of source directory
+        srcFiles = self.getFileList(src_dir)
+
+        # Log destination directory
+        self.log_update('tmpSync', dest_dir)
+        dest_Data = self.log_load('tmpSync', dest_dir)
+
+        n, d, m, r = fm.log_compare(dest_Data, srcFiles, src_dir)
+
+        # File operations
+        for file in (n + m):
+            src = os.path.join(src_dir, file)
+            dest = os.path.join(dest_dir, file)
+
+            shutil.copy2(src, dest)
+
+        for file in d:
+            dest = os.path.join(dest_dir, file)
+            os.remove(dest)
+
+        # Delete temporary log files
+        log_path = os.path.join(dest_dir, 'tmpSync.log')
+        os.remove(log_path)
+
+        return True
+
+
+def hash(file_path, curDir = os.getcwd()):
+    file_path = os.path.join(curDir, file_path)
     f = open(file_path, 'rb')
     readFile = f.read()
     hash_func = hashlib.md5(readFile)
@@ -145,6 +179,15 @@ if __name__ == '__main__':
 
         elif command[0] == 'log': # Write file and hash list to log file
             fm.log_update()
+
+        elif command[0] == 'sync': # Write file and hash list to log file
+            src = input('\tSource directory: ')
+            dest = input('\tDestination directory: ')
+            if fm.syncDir(src, dest):
+                print('Successfully synced')
+            else:
+                print('Failed sync')
+
 
         elif command[0] == 'compare': # Compare log file and actual files
             log_data = fm.log_load()
