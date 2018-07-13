@@ -10,7 +10,7 @@ class FileManager():
         self.SEARCH_SUBDIRS = True
 
     def getDirList(self, curDir = os.getcwd()):
-        dir_list = ['< ~ >', '< .. >']
+        dir_list = []
         for node in os.scandir(curDir):
             if node.is_dir():
                 dir_list.append(node.name)
@@ -77,12 +77,13 @@ class FileManager():
                     modFile_list.append(file)
             else:
                 if hash(file, curDir) in log_data.values(): # Renamed file
-                    rnmFile_list.append(file)
+                    prev_name = list(log_data.keys())[list(log_data.values()).index(hash(file, curDir))]
+                    rnmFile_list.append([prev_name, file])
                 else: # New file
                     newFile_list.append(file)
 
         for file in log_data.keys():
-            if file not in file_list and file not in modFile_list and file not in rnmFile_list: # Deleted file
+            if file not in file_list and file not in modFile_list and file not in [r[0] for r in rnmFile_list]: # Deleted file
                 delFile_list.append(file)
 
         return newFile_list, delFile_list, modFile_list, rnmFile_list;
@@ -95,7 +96,25 @@ class FileManager():
         else:
             return False;
 
-    def syncDir(self, src_dir, dest_dir):
+    def syncDirs(self, src_dir, dest_dir):
+        trav_queue = [(src_dir, dest_dir)]
+
+        while len(trav_queue) > 0:
+            # pprint.pprint(trav_queue)
+            parent_path = trav_queue[0]
+            dir_list = self.getDirList(parent_path[0])
+            trav_queue = trav_queue[1:]
+
+            for dir in dir_list:
+                src = os.path.join(parent_path[0], dir)
+                dest = os.path.join(parent_path[1], dir)
+                if not os.path.isdir(dest):
+                    os.mkdir(dest)
+
+                trav_queue.append((src, dest))
+
+
+    def sync(self, src_dir, dest_dir):
 
         if not (os.path.isdir(src_dir) and os.path.isdir(dest_dir)):
             return False
@@ -107,18 +126,39 @@ class FileManager():
         self.log_update('tmpSync', dest_dir)
         dest_Data = self.log_load('tmpSync', dest_dir)
 
+        # File compare
         n, d, m, r = fm.log_compare(dest_Data, srcFiles, src_dir)
 
         # File operations
-        for file in (n + m):
+        print('File ops')
+        self.syncDirs(src_dir, dest_dir)
+
+        for file in (n + m): # New and modified files
             src = os.path.join(src_dir, file)
             dest = os.path.join(dest_dir, file)
 
             shutil.copy2(src, dest)
 
-        for file in d:
+        for file in d: # Deleted files
             dest = os.path.join(dest_dir, file)
             os.remove(dest)
+
+        # print(r)
+        # print(d)
+
+        ind = 0
+        for path_pair in r: # Give files a temporary name to avoid conflicts
+            src = os.path.join(dest_dir, path_pair[0])
+            path_pair[0] = path_pair[0] + '0x00000000-' + str(ind)
+            dest = os.path.join(dest_dir, path_pair[0])
+            os.rename(src, dest)
+
+        for path_pair in r: # Rename the files correctly
+            src = os.path.join(dest_dir, path_pair[0])
+            dest = os.path.join(dest_dir, path_pair[1])
+            os.rename(src, dest)
+
+
 
         # Delete temporary log files
         log_path = os.path.join(dest_dir, 'tmpSync.log')
@@ -183,7 +223,7 @@ if __name__ == '__main__':
         elif command[0] == 'sync': # Write file and hash list to log file
             src = input('\tSource directory: ')
             dest = input('\tDestination directory: ')
-            if fm.syncDir(src, dest):
+            if fm.sync(src, dest):
                 print('Successfully synced')
             else:
                 print('Failed sync')
