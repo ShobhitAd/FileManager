@@ -1,20 +1,21 @@
 # File Manager
 # Author : Shobhit Adlakha
-
 import hashlib, os, sys, shutil;
 import pprint;
 
+#-------------------------- Classes
 class FileManager():
     def __init__(self, ext):
-        self.EXT = []
+        # FileManager Options
+        self.FILE_TYPE = []
         self.SEARCH_SUBDIRS = True
 
     def getDirList(self, curDir = os.getcwd()):
         dir_list = []
+        # Find all subdirectories
         for node in os.scandir(curDir):
             if node.is_dir():
                 dir_list.append(node.name)
-
         return dir_list
 
     def getFileList(self, curDir = os.getcwd()):
@@ -24,7 +25,7 @@ class FileManager():
         # Run until directory queue is empty
         while len(dir_queue) != 0:
             dir = dir_queue.pop(0)
-
+            # Find all files
             for node in os.scandir(dir):
                 if node.is_dir() and self.SEARCH_SUBDIRS:
                     dir_queue.append(node.path)
@@ -34,10 +35,13 @@ class FileManager():
         return file_list;
 
     def hasExtension(self, file):
-        if len(self.EXT) == 0:
+        # All files
+        if len(self.FILE_TYPE) == 0:
             return True;
-        for ext in self.EXT:
-            if file.endswith('.' + ext.lower()):
+
+        # Specific extensions being tracked
+        for ft in self.FILE_TYPE:
+            if file.endswith('.' + ft.lower()):
                 return True;
         return False;
 
@@ -54,16 +58,14 @@ class FileManager():
         log_inst.update(dest_dir)
         dest_Data = log_inst.load(dest_dir)
 
-        # File compare
-        n, d, m, r = log_inst.compare(dest_Data, srcFiles, src_dir)
+        self.createMissingDirs(src_dir, dest_dir)
 
         # File operations
-        self.syncDirs(src_dir, dest_dir)
+        n, d, m, r = log_inst.compare(dest_Data, srcFiles, src_dir)
 
         for file in (n + m): # New and modified files
             src = os.path.join(src_dir, file)
             dest = os.path.join(dest_dir, file)
-
             shutil.copy2(src, dest)
 
         for file in d: # Deleted files
@@ -73,7 +75,9 @@ class FileManager():
         ind = 0
         for path_pair in r: # Give files a temporary name to avoid conflicts
             src = os.path.join(dest_dir, path_pair[0])
+
             path_pair[0] = path_pair[0] + '0x00000000-' + str(ind)
+            ind += 1
             dest = os.path.join(dest_dir, path_pair[0])
             os.rename(src, dest)
 
@@ -82,19 +86,17 @@ class FileManager():
             dest = os.path.join(dest_dir, path_pair[1])
             os.rename(src, dest)
 
-
-
         # Delete temporary log files
         log_inst.delete()
         return True
 
-    def syncDirs(self, src_dir, dest_dir):
-        trav_queue = [(src_dir, dest_dir)]
+    def createMissingDirs(self, src_dir, dest_dir):
+        subdir_queue = [(src_dir, dest_dir)]
 
-        while len(trav_queue) > 0:
-            parent_path = trav_queue[0]
+        while len(subdir_queue) > 0:
+            parent_path = subdir_queue[0]
             dir_list = self.getDirList(parent_path[0])
-            trav_queue = trav_queue[1:]
+            subdir_queue.pop(0)
 
             for dir in dir_list:
                 src = os.path.join(parent_path[0], dir)
@@ -102,7 +104,7 @@ class FileManager():
                 if not os.path.isdir(dest):
                     os.mkdir(dest)
 
-                trav_queue.append((src, dest))
+                subdir_queue.append((src, dest))
 
 
 class Log():
@@ -110,11 +112,11 @@ class Log():
     def __init__(self, file_name, fm):
         self.FILE_NAME = file_name
         self.FM = fm
-        self.EXT = '.fmLog'
+        self.FILE_TYPE = '.fmLog'
 
     def load(self, curDir = os.getcwd()):
         data = {}
-        file_path = os.path.join(curDir, self.FILE_NAME + self.EXT)
+        file_path = os.path.join(curDir, self.FILE_NAME + self.FILE_TYPE)
 
         if not os.path.isfile(file_path):
             return None
@@ -131,7 +133,7 @@ class Log():
 
 
     def update(self, curDir = os.getcwd()):
-        file_path = os.path.join(curDir, self.FILE_NAME + self.EXT)
+        file_path = os.path.join(curDir, self.FILE_NAME + self.FILE_TYPE)
         try:
             log_file = open(file_path, 'w')
             file_list = self.FM.getFileList(curDir)
@@ -167,7 +169,7 @@ class Log():
         return newFile_list, delFile_list, modFile_list, rnmFile_list;
 
     def delete(self, curDir = os.getcwd()):
-        path = os.path.join(curDir, self.FILE_NAME + self.EXT)
+        path = os.path.join(curDir, self.FILE_NAME + self.FILE_TYPE)
         if os.path.isfile(path):
             os.remove(path)
             return True;
@@ -176,6 +178,7 @@ class Log():
 
 
 
+#-------------------------- Functions
 def hash(file_path, curDir = os.getcwd()):
     file_path = os.path.join(curDir, file_path)
     f = open(file_path, 'rb')
@@ -200,7 +203,7 @@ def user_input(msg, default = '', special = []):
             txt = case[1] + txt[len(case[0]):]
     return txt;
 
-
+#-------------------------- Main
 if __name__ == '__main__':
     print(' Welcome to File Manager. Enter your command\n')
 
@@ -215,7 +218,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
         elif command[0] == 'help' or command[0] == 'h': # Commands Reference
-            print('Tracking extensions...' + str(fm.EXT))
+            print('Tracking extensions...' + str(fm.FILE_TYPE))
             print('Searching subdirs...' + str(fm.SEARCH_SUBDIRS))
 
             print('List of commands...')
@@ -284,12 +287,12 @@ if __name__ == '__main__':
 
         elif command[0] == 'opt':
             if len(command) == 1:
-                print('EXT: ' + str(fm.EXT))
+                print('FILE_TYPE: ' + str(fm.FILE_TYPE))
                 print('SEARCH_SUBDIRS: ' + str(fm.SEARCH_SUBDIRS))
             elif len(command) == 3:
                 if command[1] == 'ext':
-                    fm.EXT = command[2].split(',')
-                    print('EXT: ' + str(fm.EXT))
+                    fm.FILE_TYPE = command[2].split(',')
+                    print('FILE_TYPE: ' + str(fm.FILE_TYPE))
                 elif command[1] == 'search_subdirs':
                     fm.SEARCH_SUBDIRS = (command[2] == 'true')
                     print('SEARCH_SUBDIRS: ' + str(fm.SEARCH_SUBDIRS))
