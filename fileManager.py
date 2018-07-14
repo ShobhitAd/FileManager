@@ -305,8 +305,10 @@ if __name__ == '__main__':
                 print('FILE_TYPE: ' + str(fm.FILE_TYPE))
                 print('SEARCH_SUBDIRS: ' + str(fm.SEARCH_SUBDIRS))
             elif len(command) == 3:
-                if command[1] == 'ext':
+                if command[1] == 'file_type':
                     fm.FILE_TYPE = command[2].split(',')
+                    if fm.FILE_TYPE[0] == '' or fm.FILE_TYPE[0] == 'none':
+                        fm.FILE_TYPE = []
                     print('FILE_TYPE: ' + str(fm.FILE_TYPE))
                 elif command[1] == 'search_subdirs':
                     fm.SEARCH_SUBDIRS = (command[2] == 'true')
