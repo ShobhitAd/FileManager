@@ -34,16 +34,91 @@ class FileManager():
         return file_list;
 
     def hasExtension(self, file):
-        if len(self.EXT) == 0 and not file.endswith('.log'):
+        if len(self.EXT) == 0:
             return True;
         for ext in self.EXT:
             if file.endswith('.' + ext.lower()):
                 return True;
         return False;
 
-    def log_load(self, file_name = 'files', curDir = os.getcwd()):
+    def sync(self, src_dir, dest_dir):
+
+        if not (os.path.isdir(src_dir) and os.path.isdir(dest_dir)):
+            return False
+
+        # Get file list of source directory
+        srcFiles = self.getFileList(src_dir)
+
+        # Log destination directory
+        log_inst = Log('tmpSync', self)
+        log_inst.update(dest_dir)
+        dest_Data = log_inst.load(dest_dir)
+
+        # File compare
+        n, d, m, r = log_inst.compare(dest_Data, srcFiles, src_dir)
+
+        # File operations
+        self.syncDirs(src_dir, dest_dir)
+
+        for file in (n + m): # New and modified files
+            src = os.path.join(src_dir, file)
+            dest = os.path.join(dest_dir, file)
+
+            shutil.copy2(src, dest)
+
+        for file in d: # Deleted files
+            dest = os.path.join(dest_dir, file)
+            os.remove(dest)
+
+        ind = 0
+        for path_pair in r: # Give files a temporary name to avoid conflicts
+            src = os.path.join(dest_dir, path_pair[0])
+            path_pair[0] = path_pair[0] + '0x00000000-' + str(ind)
+            dest = os.path.join(dest_dir, path_pair[0])
+            os.rename(src, dest)
+
+        for path_pair in r: # Rename the files correctly
+            src = os.path.join(dest_dir, path_pair[0])
+            dest = os.path.join(dest_dir, path_pair[1])
+            os.rename(src, dest)
+
+
+
+        # Delete temporary log files
+        log_inst.delete()
+        return True
+
+    def syncDirs(self, src_dir, dest_dir):
+        trav_queue = [(src_dir, dest_dir)]
+
+        while len(trav_queue) > 0:
+            parent_path = trav_queue[0]
+            dir_list = self.getDirList(parent_path[0])
+            trav_queue = trav_queue[1:]
+
+            for dir in dir_list:
+                src = os.path.join(parent_path[0], dir)
+                dest = os.path.join(parent_path[1], dir)
+                if not os.path.isdir(dest):
+                    os.mkdir(dest)
+
+                trav_queue.append((src, dest))
+
+
+class Log():
+
+    def __init__(self, file_name, fm):
+        self.FILE_NAME = file_name
+        self.FM = fm
+        self.EXT = '.fmLog'
+
+    def load(self, curDir = os.getcwd()):
         data = {}
-        file_path = os.path.join(curDir, file_name + '.log')
+        file_path = os.path.join(curDir, self.FILE_NAME + self.EXT)
+
+        if not os.path.isfile(file_path):
+            return None
+
         log_file = open(file_path, 'r')
 
         for line in log_file:
@@ -55,17 +130,20 @@ class FileManager():
         return data;
 
 
-    def log_update(self, file_name = 'files', curDir = os.getcwd()):
-        file_path = os.path.join(curDir, file_name + '.log')
-        log_file = open(file_path, 'w')
-        file_list = self.getFileList(curDir)
-        for file in file_list:
-            log_file.write(file + '\t' + hash(file, curDir) + '\n')
-        log_file.close()
+    def update(self, curDir = os.getcwd()):
+        file_path = os.path.join(curDir, self.FILE_NAME + self.EXT)
+        try:
+            log_file = open(file_path, 'w')
+            file_list = self.FM.getFileList(curDir)
+            for file in file_list:
+                log_file.write(file + '\t' + hash(file, curDir) + '\n')
+            log_file.close()
+            return True
+        except:
+            return False
 
 
-
-    def log_compare(self, log_data, file_list, curDir = os.getcwd()):
+    def compare(self, log_data, file_list, curDir = os.getcwd()):
         newFile_list = []
         delFile_list = []
         modFile_list = []
@@ -88,83 +166,14 @@ class FileManager():
 
         return newFile_list, delFile_list, modFile_list, rnmFile_list;
 
-    def file_delete(self, file_name, curDir = os.getcwd()):
-        path = os.path.join(curDir, file_name)
+    def delete(self, curDir = os.getcwd()):
+        path = os.path.join(curDir, self.FILE_NAME + self.EXT)
         if os.path.isfile(path):
             os.remove(path)
             return True;
         else:
             return False;
 
-    def syncDirs(self, src_dir, dest_dir):
-        trav_queue = [(src_dir, dest_dir)]
-
-        while len(trav_queue) > 0:
-            # pprint.pprint(trav_queue)
-            parent_path = trav_queue[0]
-            dir_list = self.getDirList(parent_path[0])
-            trav_queue = trav_queue[1:]
-
-            for dir in dir_list:
-                src = os.path.join(parent_path[0], dir)
-                dest = os.path.join(parent_path[1], dir)
-                if not os.path.isdir(dest):
-                    os.mkdir(dest)
-
-                trav_queue.append((src, dest))
-
-
-    def sync(self, src_dir, dest_dir):
-
-        if not (os.path.isdir(src_dir) and os.path.isdir(dest_dir)):
-            return False
-
-        # Get file list of source directory
-        srcFiles = self.getFileList(src_dir)
-
-        # Log destination directory
-        self.log_update('tmpSync', dest_dir)
-        dest_Data = self.log_load('tmpSync', dest_dir)
-
-        # File compare
-        n, d, m, r = fm.log_compare(dest_Data, srcFiles, src_dir)
-
-        # File operations
-        print('File ops')
-        self.syncDirs(src_dir, dest_dir)
-
-        for file in (n + m): # New and modified files
-            src = os.path.join(src_dir, file)
-            dest = os.path.join(dest_dir, file)
-
-            shutil.copy2(src, dest)
-
-        for file in d: # Deleted files
-            dest = os.path.join(dest_dir, file)
-            os.remove(dest)
-
-        # print(r)
-        # print(d)
-
-        ind = 0
-        for path_pair in r: # Give files a temporary name to avoid conflicts
-            src = os.path.join(dest_dir, path_pair[0])
-            path_pair[0] = path_pair[0] + '0x00000000-' + str(ind)
-            dest = os.path.join(dest_dir, path_pair[0])
-            os.rename(src, dest)
-
-        for path_pair in r: # Rename the files correctly
-            src = os.path.join(dest_dir, path_pair[0])
-            dest = os.path.join(dest_dir, path_pair[1])
-            os.rename(src, dest)
-
-
-
-        # Delete temporary log files
-        log_path = os.path.join(dest_dir, 'tmpSync.log')
-        os.remove(log_path)
-
-        return True
 
 
 def hash(file_path, curDir = os.getcwd()):
@@ -182,20 +191,30 @@ def printComparison(title, lst):
     for file in lst:
         print('\t' + file)
 
+def user_input(msg, default = '', special = []):
+    txt = input(msg)
+    if txt.strip() == '': # No input
+        txt = default
+    for case in special:
+        if txt.startswith(case[0]):
+            txt = case[1] + txt[len(case[0]):]
+    return txt;
+
+
 if __name__ == '__main__':
     print(' Welcome to File Manager. Enter your command\n')
 
     fm = FileManager(list(sys.argv[1:]))
 
     while True:
-        command = input('>>')
+        command = user_input('>>')
         command = command.lower().split(" ")
 
         if command[0] == 'quit' or command[0] == 'q': # Exit program
             print('Thanks for using File Manager.')
             sys.exit(0)
 
-        elif command[0] == 'help' or command[0] == 'h': # Exit program
+        elif command[0] == 'help' or command[0] == 'h': # Commands Reference
             print('Tracking extensions...' + str(fm.EXT))
             print('Searching subdirs...' + str(fm.SEARCH_SUBDIRS))
 
@@ -206,6 +225,9 @@ if __name__ == '__main__':
 
             print('compare:')
             print('\tRun a comparison against the log to find which files are new, updated, deleted or renamed')
+
+            print('sync:')
+            print('\tSync the files between a source and destination directory')
 
             print('opt <var_name> val1[,val2]*:')
             print('\tUse opt to list and change file manager options')
@@ -218,11 +240,16 @@ if __name__ == '__main__':
 
 
         elif command[0] == 'log': # Write file and hash list to log file
-            fm.log_update()
+            log_name = user_input('\t Enter name of log file: ', 'files', [('~' , os.getcwd())])
+            log_inst = Log(log_name, fm)
+            if log_inst.update():
+                print('Log updated')
+            else:
+                print('Failed Log update')
 
-        elif command[0] == 'sync': # Write file and hash list to log file
-            src = input('\tSource directory: ')
-            dest = input('\tDestination directory: ')
+        elif command[0] == 'sync': # Sync files between a source and destination directory
+            src = user_input('\tEnter Source directory(~ for referencing cwd): ', os.getcwd(), [('~' , os.getcwd())])
+            dest = user_input('\tEnter Destination directory(~ for referencing cwd): ', os.getcwd(), [('~' , os.getcwd())])
             if fm.sync(src, dest):
                 print('Successfully synced')
             else:
@@ -230,19 +257,27 @@ if __name__ == '__main__':
 
 
         elif command[0] == 'compare': # Compare log file and actual files
-            log_data = fm.log_load()
+            log_name = user_input('\t Enter name of log file: ', 'files', [('~' , os.getcwd())])
+            log_inst = Log(log_name, fm)
+            log_data = log_inst.load()
             file_list = fm.getFileList()
 
-            n, d, m, r = fm.log_compare(log_data, file_list)
+            if log_data == None:
+                print('Failed to load log data')
+            else:
+                n, d, m, r = log_inst.compare(log_data, file_list)
 
-            print('Comparison results....')
-            printComparison('NEW:', n)
-            printComparison('DELETE:', d)
-            printComparison('MODIFIED:', m)
-            printComparison('RENAMED:', r)
+                print('Comparison results....')
+                printComparison('NEW:', n)
+                printComparison('DELETE:', d)
+                printComparison('MODIFIED:', m)
+                printComparison('RENAMED:', r)
 
         elif command[0] == 'del':
-            if fm.file_delete('files.log'):
+            log_name = user_input('\t Enter name of log file: ', 'files', [('~' , os.getcwd())])
+
+            log_inst = Log(log_name, fm)
+            if log_inst.delete():
                 print('Log file deleted')
             else:
                 print('Log file does not exist')
