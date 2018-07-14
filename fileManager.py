@@ -63,6 +63,21 @@ class FileManager():
         # File operations
         n, d, m, r = log_inst.compare(dest_Data, srcFiles, src_dir)
 
+        print('The following changes will be made\n')
+        printComparison('Create:', n)
+        printComparison('Replace:', m)
+        printComparison('Rename:', r)
+        printComparison('Delete:', d)
+
+        confirmation = user_input('\nContinue with sync(yes/no): ', 'yes')
+        if confirmation == 'yes':
+            print('Starting sync')
+        else:
+            print('Sync cancelled')
+            return False
+
+
+
         for file in (n + m): # New and modified files
             src = os.path.join(src_dir, file)
             dest = os.path.join(dest_dir, file)
