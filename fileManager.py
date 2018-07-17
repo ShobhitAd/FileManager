@@ -51,16 +51,18 @@ class FileManager():
             return False
 
         # Get file list of source directory
+        print("Reading source directory...")
         srcFiles = self.getFileList(src_dir)
 
         # Log destination directory
+        print("Logging destination directory...")
         log_inst = Log('tmpSync', self)
         log_inst.update(dest_dir)
         dest_Data = log_inst.load(dest_dir)
 
-        self.createMissingDirs(src_dir, dest_dir)
 
         # File operations
+        print("Comparing directories...")
         n, d, m, r = log_inst.compare(dest_Data, srcFiles, src_dir)
 
         print('The following changes will be made\n')
@@ -76,17 +78,21 @@ class FileManager():
             print('Sync cancelled')
             return False
 
+        print("Creating missing subdirectories...")
+        self.createMissingDirs(src_dir, dest_dir)
 
-
+        print("Copying over new and modified files...")
         for file in (n + m): # New and modified files
             src = os.path.join(src_dir, file)
             dest = os.path.join(dest_dir, file)
             shutil.copy2(src, dest)
 
+        print("Deleting extra files...")
         for file in d: # Deleted files
             dest = os.path.join(dest_dir, file)
             os.remove(dest)
 
+        print("Renaming files...")
         ind = 0
         for path_pair in r: # Give files a temporary name to avoid conflicts
             src = os.path.join(dest_dir, path_pair[0])
@@ -207,7 +213,7 @@ def printComparison(title, lst):
     if len(lst) == 0:
         print('\t No entries')
     for file in lst:
-        print('\t' + file)
+        print('\t' + str(file))
 
 def user_input(msg, default = '', special = []):
     txt = input(msg)
